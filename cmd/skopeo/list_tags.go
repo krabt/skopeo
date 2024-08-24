@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -216,11 +215,15 @@ func (opts *tagsOptions) run(args []string, stdout io.Writer) (retErr error) {
 			outputTags = tagListing[(tagListLength - tagsCount):]
 		}
 	}
-	out, err := json.MarshalIndent(outputTags, "", "    ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(stdout, "%s\n", string(out))
+	// out, err := json.MarshalIndent(outputTags, "", "    ")
+	// if err != nil {
+	// 	return err
+	// }
 
+	// _, err = fmt.Fprintf(stdout, "%s\n", string(out))
+
+	for _, tag := range outputTags {
+		fmt.Println(tag)
+	}
 	return err
 }
