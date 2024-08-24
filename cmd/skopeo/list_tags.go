@@ -16,8 +16,20 @@ import (
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
 )
+
+type tagsCountOptions struct {
+	TagsCount int
+}
+
+func ImageTagsCountFlags() (pflag.FlagSet, *tagsCountOptions) {
+	opts := tagsCountOptions{}
+	fs := pflag.FlagSet{}
+	fs.IntVar(&opts.TagsCount, "tags-count", 0, "list tags count")
+	return fs, &opts
+}
 
 // tagListOutput is the output format of (skopeo list-tags), primarily so that we can format it with a simple json.MarshalIndent.
 type tagListOutput struct {
@@ -26,9 +38,10 @@ type tagListOutput struct {
 }
 
 type tagsOptions struct {
-	global    *globalOptions
-	image     *imageOptions
-	retryOpts *retry.Options
+	global        *globalOptions
+	image         *imageOptions
+	retryOpts     *retry.Options
+	tagsCountOpts *tagsCountOptions
 }
 
 var transportHandlers = map[string]func(ctx context.Context, sys *types.SystemContext, opts *tagsOptions, userInput string) (repositoryName string, tagListing []string, err error){
@@ -47,11 +60,12 @@ func tagsCmd(global *globalOptions) *cobra.Command {
 	sharedFlags, sharedOpts := sharedImageFlags()
 	imageFlags, imageOpts := dockerImageFlags(global, sharedOpts, nil, "", "")
 	retryFlags, retryOpts := retryFlags()
-
+	tagsCountFlags, tagsCountOpts := ImageTagsCountFlags()
 	opts := tagsOptions{
-		global:    global,
-		image:     imageOpts,
-		retryOpts: retryOpts,
+		global:        global,
+		image:         imageOpts,
+		retryOpts:     retryOpts,
+		tagsCountOpts: tagsCountOpts,
 	}
 
 	cmd := &cobra.Command{
@@ -72,6 +86,7 @@ See skopeo-list-tags(1) section "REPOSITORY NAMES" for the expected format
 	flags.AddFlagSet(&sharedFlags)
 	flags.AddFlagSet(&imageFlags)
 	flags.AddFlagSet(&retryFlags)
+	flags.AddFlagSet(&tagsCountFlags)
 	return cmd
 }
 
@@ -177,11 +192,11 @@ func (opts *tagsOptions) run(args []string, stdout io.Writer) (retErr error) {
 		return fmt.Errorf("Invalid %q: does not specify a transport", args[0])
 	}
 
-	var repositoryName string
-	var tagListing []string
+	// var repositoryName string
+	var tagListing, outputTags []string
 
 	if val, ok := transportHandlers[transport.Name()]; ok {
-		repositoryName, tagListing, err = val(ctx, sys, opts, args[0])
+		_, tagListing, err = val(ctx, sys, opts, args[0])
 		if err != nil {
 			return err
 		}
@@ -190,12 +205,18 @@ func (opts *tagsOptions) run(args []string, stdout io.Writer) (retErr error) {
 			transport.Name(), supportedTransports(", "))
 	}
 
-	outputData := tagListOutput{
-		Repository: repositoryName,
-		Tags:       tagListing,
+	// outputData := tagListOutput{
+	// 	Repository: repositoryName,
+	// 	Tags:       tagListing,
+	// }
+	tagListLength := len(tagListing)
+	tagsCount := opts.tagsCountOpts.TagsCount
+	if tagsCount >= 0 {
+		if tagListLength > tagsCount {
+			outputTags = tagListing[(tagListLength - tagsCount):]
+		}
 	}
-
-	out, err := json.MarshalIndent(outputData, "", "    ")
+	out, err := json.MarshalIndent(outputTags, "", "    ")
 	if err != nil {
 		return err
 	}
